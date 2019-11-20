@@ -1,0 +1,9 @@
+Android Functions:
+__________________
+Connect to android were:
+
+E:\android_sdk\sdk\platform-tools>adb tcpip 5555
+
+E:\android_sdk\sdk\platform-tools>adb connect 192.168.0.101:5555
+connected to 192.168.0.101:5555
+__________________
