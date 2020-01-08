@@ -185,3 +185,22 @@ Rxjava timer :-
         }
     }
 __________________
+goto this path for sha1 key:
+ 
+cd C:\Program Files (x86)\Java\jre1.8.0_45\bin
+
+
+C:\Program Files\Java\jre1.8.0_51\bin>
+keytool -list -v -keystore "%USERPROFILE%\.android\debug.keystore" -alias androiddebugkey -storepass android -keypass android
+__________________
+ convert list to csvString and vice versa
+
+// list to csvString
+//        String svn = android.text.TextUtils.join(",", serviceList);
+//        Log.e("svn :--: ", svn);
+
+// csvString to list
+//        List<String> list = new ArrayList<String>(Arrays.asList(svn.split(",")));
+//        for (int i = 0; i < list.size(); i++) {
+//            Log.e("svn list :--: ", "" + list.get(i));
+//        } 
