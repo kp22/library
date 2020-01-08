@@ -1,0 +1,18 @@
+      Category category = new Category("31");
+        Call<CategoryResponse> call = APIUrl.provideApiService().getCategory(category);
+        call.enqueue(new Callback<CategoryResponse>() {
+            @Override
+            public void onResponse(Call<CategoryResponse> call, Response<CategoryResponse> response) {
+                if (response.body().getStatus() == 1) {
+                    CategoryResponse body = response.body();
+                    int i = body.getResult().size();
+                    for (int no = 0; no < i; no++) {
+                        addCategoryView(body.getResult().get(no).getShopCategoryName(), Integer.parseInt(body.getResult().get(no).getShopCategoryId()));
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<CategoryResponse> call, Throwable t) {
+            }
+        });
