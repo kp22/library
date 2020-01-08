@@ -56,6 +56,20 @@ ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTI
 			}else{
 				net OFF
 			}
+			
+ public boolean isOnline() {
+        ConnectivityManager manager =
+                (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo networkInfo = manager.getActiveNetworkInfo();
+        boolean isAvailable = false;
+        if (networkInfo != null && networkInfo.isConnected()) {
+            isAvailable = true;
+        }
+        if (!isAvailable) {
+            AppDialog.showNoNetworkDialog(this);
+        }
+        return isAvailable;
+    }
 __________________
 util preferences :-
 
@@ -73,6 +87,159 @@ util preferences :-
             editor.putString(key, value);
             editor.commit();
         } catch (Exception e) {
+        }
+    }
+__________________
+
+    private void batteryOptimizationIntent() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+            if (!powerManager.isIgnoringBatteryOptimizations(getPackageName())) {
+
+                LayoutInflater inflater = (LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
+                View view = inflater.inflate(R.layout.fragment_simple_popup, null);
+                final AlertDialog dailog = new AlertDialog.Builder(this)
+                        .setView(view)
+                        .show();
+                Button btnOk = view.findViewById(R.id.sim_pop_btn_ok);
+                TextView tvMsg = view.findViewById(R.id.sim_pop_tv_msg);
+                tvMsg.setText(getString(R.string.strBatteryOptimzeMsg));
+                btnOk.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        dailog.dismiss();
+                        Intent intent = new Intent(ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                        startActivityForResult(intent, 1003);
+                    }
+                });
+
+//                new AlertDialog.Builder(this)
+//                        .setTitle(getString(R.string.app_name))
+//                        .setMessage(getString(R.string.strBatteryOptimzeMsg))
+//                        .setPositiveButton(getString(R.string.strOk), new DialogInterface.OnClickListener() {
+//                            @Override
+//                            public void onClick(DialogInterface dialog, int which) {
+//                                dialog.dismiss();
+//                                Intent intent = new Intent(ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+//                                startActivityForResult(intent, 1003);
+//                            }
+//                        })
+//                        .show();
+            }
+        }
+    }
+
+    private void checkAutoStartUpApp() {
+        String manufacturer = android.os.Build.MANUFACTURER;
+        //check os is miui or not for xiaomi device
+        if (manufacturer.equalsIgnoreCase("xiaomi")) {
+            try {
+                Class<?> c = Class.forName("android.os.SystemProperties");
+                Method get = c.getMethod("get", String.class);
+                String miui_name = (String) get.invoke(c, "ro.miui.ui.version.name");
+                if (miui_name != null && !miui_name.equalsIgnoreCase("")) {
+                    isMiui = true;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        if (manufacturer.equalsIgnoreCase("xiaomi") ||
+                manufacturer.equalsIgnoreCase("oppo") ||
+                manufacturer.equalsIgnoreCase("vivo") ||
+                manufacturer.equalsIgnoreCase("Honor")
+                || manufacturer.equalsIgnoreCase("huawei")) {
+            String isFirstTime = Utils.getStringToPref(this, getString(R.string.prefAutoStartUp), "true");
+            if (isFirstTime.equalsIgnoreCase("true")) {
+                if (manufacturer.equalsIgnoreCase("xiaomi") && !isMiui) {
+                    //brand is xiomi but android version is not miui
+                } else {
+
+                    LayoutInflater inflater = (LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
+                    View view = inflater.inflate(R.layout.fragment_simple_popup, null);
+                    final AlertDialog dailog = new AlertDialog.Builder(this)
+                            .setView(view)
+                            .show();
+                    Button btnOk = view.findViewById(R.id.sim_pop_btn_ok);
+                    TextView tvMsg = view.findViewById(R.id.sim_pop_tv_msg);
+                    tvMsg.setText(getString(R.string.strAutostart));
+                    btnOk.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View view) {
+                            dailog.dismiss();
+                            autoStartUpApp();
+                        }
+                    });
+
+
+//                    new AlertDialog.Builder(this)
+//                            .setTitle(getString(R.string.app_name))
+//                            .setMessage(getString(R.string.strAutostart))
+//                            .setCancelable(false)
+//                            .setPositiveButton(getString(android.R.string.ok), new DialogInterface.OnClickListener() {
+//                                @Override
+//                                public void onClick(DialogInterface dialog, int which) {
+//                                    dialog.dismiss();
+//                                    autoStartUpApp();
+//                                }
+//                            })
+//                            .create()
+//                            .show();
+                }
+            }
+        }
+    }
+
+    private void autoStartUpApp() {
+        Utils.saveStringToPref(this, getString(R.string.prefAutoStartUp), "false");
+        String manufacturer = android.os.Build.MANUFACTURER;
+        if (manufacturer.equalsIgnoreCase("xiaomi")) {
+            Intent intent = new Intent();
+            intent.setComponent(new ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"));
+            startActivity(intent);
+        } else if (manufacturer.equalsIgnoreCase("oppo")) {
+            initOPPO();
+        } else if (manufacturer.equalsIgnoreCase("vivo")) {
+            Intent intent = new Intent();
+            intent.setComponent(new ComponentName("com.vivo.permissionmanager",
+                    "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"));
+            startActivity(intent);
+        } else if (manufacturer.equalsIgnoreCase("Honor")) {
+            Intent intent = new Intent();
+            intent.setComponent(new ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.appcontrol.activity.StartupAppControlActivity"));
+            startActivity(intent);
+        } else if (manufacturer.equalsIgnoreCase("huawei")) {
+            Intent intent = new Intent();
+            intent.setComponent(new ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.appcontrol.activity.StartupAppControlActivity"));
+            startActivity(intent);
+        }
+    }
+
+    private void initOPPO() {
+        try {
+            Intent intent = new Intent();
+            intent.setClassName("com.coloros.safecenter",
+                    "com.coloros.safecenter.permission.startup.StartupAppListActivity");
+            startActivity(intent);
+        } catch (Exception e) {
+            e.printStackTrace();
+            try {
+                Intent intent = new Intent();
+                intent.setClassName("com.oppo.safe",
+                        "com.oppo.safe.permission.startup.StartupAppListActivity");
+                startActivity(intent);
+
+            } catch (Exception ex) {
+                e.printStackTrace();
+                try {
+                    Intent intent = new Intent();
+                    intent.setClassName("com.coloros.safecenter",
+                            "com.coloros.safecenter.startupapp.StartupAppListActivity");
+                    startActivity(intent);
+                } catch (Exception exx) {
+                    e.printStackTrace();
+                }
+            }
         }
     }
 __________________
@@ -185,6 +352,62 @@ Rxjava timer :-
         }
     }
 __________________
+public void changeFrag(Fragment fragment, boolean isBackStack, boolean isPopBack) {
+        FragmentManager fm = getSupportFragmentManager();
+        FragmentTransaction fragmentTransaction = fm.beginTransaction();
+
+        if (isPopBack) {
+            fm.popBackStack();
+        }
+        if (isBackStack) {
+            fragmentTransaction.addToBackStack(null);
+        }
+        fragmentTransaction.replace(R.id.fragment, fragment);
+        fragmentTransaction.commit();
+    }
+__________________
+ public void changeFrag(Fragment fragment, boolean isBackStack, boolean isPopBack, int resourceId) {
+        FragmentManager fm = getSupportFragmentManager();
+        FragmentTransaction fragmentTransaction = fm.beginTransaction();
+
+        if (isPopBack) {
+            fm.popBackStack();
+
+        }
+        if (isBackStack) {
+            fragmentTransaction.addToBackStack(null);
+        }
+        fragmentTransaction.replace(resourceId, fragment);
+        fragmentTransaction.commit();
+    }
+__________________
+  public void addfragements(String currentTag) {
+        ScanFragment scanFragment = (ScanFragment) fm.findFragmentByTag(Utils.scanner);
+        BroadcastFragment BroadcastFragment = (BroadcastFragment) fm.findFragmentByTag(Utils.broadcast);
+        FragmentTransaction ft = fm.beginTransaction();
+
+        if (currentTag.equalsIgnoreCase(Utils.scanner)) {
+            if (BroadcastFragment != null)
+                ft.detach(BroadcastFragment);
+
+            if (scanFragment == null) {
+                ft.add(R.id.fragment, new ScanFragment(), Utils.scanner);
+            } else {
+                ft.attach(scanFragment);
+            }
+        } else if (currentTag.equalsIgnoreCase(Utils.broadcast)) {
+            if (scanFragment != null)
+                ft.detach(scanFragment);
+
+            if (BroadcastFragment == null) {
+                ft.add(R.id.fragment, new BroadcastFragment(), Utils.broadcast);
+            } else {
+                ft.attach(BroadcastFragment);
+            }
+        }
+        ft.commit();
+    }
+__________________
 goto this path for sha1 key:
  
 cd C:\Program Files (x86)\Java\jre1.8.0_45\bin
@@ -204,3 +427,241 @@ __________________
 //        for (int i = 0; i < list.size(); i++) {
 //            Log.e("svn list :--: ", "" + list.get(i));
 //        } 
+__________________
+Notification:
+
+public void sendPushNotification(String text1, String mac) {
+		String title = text1;
+		String text = text1;
+		NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this);
+		mBuilder.setSmallIcon(R.drawable.check);
+		mBuilder.setContentTitle(title);
+		mBuilder.setContentText(text);
+		mBuilder.setAutoCancel(true);
+		mBuilder.setDefaults(Notification.DEFAULT_SOUND | Notification.DEFAULT_VIBRATE);
+
+		//next 5line for click event
+		Intent intent = new Intent(android.content.Intent.ACTION_VIEW, Uri.parse(text));
+		TaskStackBuilder stackBuilder = TaskStackBuilder.create(this);
+		stackBuilder.addNextIntent(intent);
+		PendingIntent resultPendingIntent = stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT);
+		mBuilder.setContentIntent(resultPendingIntent);
+		
+		NotificationManager mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+		mNotificationManager.notify(mac, 001, mBuilder.build());
+	}
+__________________
+sign SHA Generate:
+keytool -list -v -keystore "D:\Krunal\Apk_Keystore\WalletApp\walletcache_keystore.jks" -alias walletcache -storepass walletcache -keypass walletcache
+__________________
+SELECT A.*,B.* FROM tbl_device AS A LEFT JOIN tbl_temp_history AS B ON B.mac = A.mac
+
+SELECT A.*,B.* FROM tbl_device AS A LEFT JOIN tbl_temp_history AS B ON B.macAddress = A.mac
+
+SELECT A.*,B.* FROM tbl_device AS A LEFT JOIN tbl_temp_history AS B ON B.macAddress = A.mac AND B.upload='0'
+
+SELECT A.*,B.* FROM tbl_device AS A LEFT JOIN tbl_temp_history AS B ON B.macAddress = A.mac WHERE B.upload = '0'
+
+SELECT A.*,B.*, B.mac AS mac1 FROM tbl_device AS A LEFT JOIN tbl_temp_history AS B ON B.mac = A.mac
+__________________
+upload project on git:-
+
+1. Goto the project folder path:
+2. git init
+3. git remote add origin https://github.com/rovitracker/rovi-mobile-android-2.git
+4  git commit -m "init commit"
+5. git push -u origin master
+
+Username for 'https://github.com': rakeshmjiyani
+pwd:- d30553d30553
+
+----------
+git init
+git add .
+git commit -m "initial commit"
+git remote add origin remote_repository_URL
+git remote -v
+git push -f origin master
+__________________
+hide navigation
+
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+//                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+//                        | View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        );
+_____________________
+hide and full screen android:
+
+getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+_____________________
+px to dp | dp to px
+
+    public static float pixelsToDp(float px, Context context) {
+        return px / ((float) context.getResources().getDisplayMetrics().densityDpi / DisplayMetrics.DENSITY_DEFAULT);
+    }
+
+    public static float dpToPixel(float dp, Context context) {
+        return dp * ((float) context.getResources().getDisplayMetrics().densityDpi / DisplayMetrics.DENSITY_DEFAULT);
+    }
+__________________
+
+find alias name from keystore:
+cd C:\Program Files\Java\jre1.8.0_51\bin > keytool -list -v -keystore "xyz.keystore path"
+
+__________________
+Selelet image:
+if (checkPermissionGranted()) {
+                chooseProfileImage();
+            } else {
+                callForPermission();
+            }
+			
+    //    ----------start select image----
+    String permission[] = {Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE};
+    final int requestRuntimePermission = 102;
+    private static final int PICK_FROM_CAMERA = 1;
+    private static final int PICK_FROM_FILE = 2;
+
+    private boolean checkPermissionGranted() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                    && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return true;
+        }
+    }
+
+    private void callForPermission() {
+        ActivityCompat.requestPermissions(this, permission, requestRuntimePermission);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        switch (requestCode) {
+            case requestRuntimePermission: {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    chooseProfileImage();
+                } else {
+                    // permission not granted
+                }
+            }
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        switch (requestCode) {
+            case PICK_FROM_CAMERA:
+                if (data != null) {
+                    Bitmap thumbnail = (Bitmap) data.getExtras().get("data");
+                    imgOfferImage.setImageBitmap(thumbnail);
+                    imgOfferBitmap = thumbnail;
+                    File file = new File(Environment.getExternalStorageDirectory(), System.currentTimeMillis() + ".jpg");
+                    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                    thumbnail.compress(Bitmap.CompressFormat.JPEG, 100, bytes);
+                    FileOutputStream fo;
+                    try {
+                        fo = new FileOutputStream(file);
+                        fo.write(bytes.toByteArray());
+                        fo.close();
+                    } catch (Exception e) {
+                        Log.e("tag", "exe:::: " + e.getMessage());
+                    }
+                }
+                break;
+
+            case PICK_FROM_FILE:
+                if (data != null) {
+                    Uri contentURI = data.getData();
+                    try {
+                        Bitmap bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), contentURI);
+                        imgOfferBitmap = bitmap;
+                        String path = saveImage(bitmap);
+                        Log.e(TAG, "Path == " + path);
+                        imgOfferImage.setImageBitmap(bitmap);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+                break;
+        }
+    }
+
+    public String saveImage(Bitmap myBitmap) {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        myBitmap.compress(Bitmap.CompressFormat.JPEG, 90, bytes);
+        File wallpaperDirectory = new File(
+                Environment.getExternalStorageDirectory() + getString(R.string.app_name));
+        if (!wallpaperDirectory.exists()) {
+            wallpaperDirectory.mkdirs();
+        }
+
+        try {
+            File f = new File(wallpaperDirectory, Calendar.getInstance().getTimeInMillis() + ".jpg");
+            f.createNewFile();
+            FileOutputStream fo = new FileOutputStream(f);
+            fo.write(bytes.toByteArray());
+            MediaScannerConnection.scanFile(this,
+                    new String[]{f.getPath()},
+                    new String[]{"image/jpeg"}, null);
+            fo.close();
+            Log.e("TAG", "File Saved::---&gt;" + f.getAbsolutePath());
+
+            return f.getAbsolutePath();
+        } catch (IOException e1) {
+            e1.printStackTrace();
+        }
+        return "";
+    }
+
+    public void chooseProfileImage() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(getString(R.string.strSelectImg));
+        ArrayList<String> arrList = new ArrayList<>();
+        arrList.add("Camera");
+        arrList.add("Gallery");
+        ArrayAdapter adapter = new ArrayAdapter<String>(context, android.R.layout.simple_list_item_1, arrList);
+        builder.setAdapter(adapter, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int item) {
+                if (item == 0) {
+                    Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                    try {
+                        intent.putExtra("return-data", true);
+                        startActivityForResult(intent, PICK_FROM_CAMERA);
+                    } catch (ActivityNotFoundException e) {
+                        e.printStackTrace();
+                    }
+                } else {
+                    Intent intent = new Intent();
+                    intent.setType("image/*");
+                    intent.setAction(Intent.ACTION_GET_CONTENT);
+                    startActivityForResult(Intent.createChooser(intent, "Complete action using"), PICK_FROM_FILE);
+                }
+            }
+        });
+        final AlertDialog dialog_profile = builder.create();
+        dialog_profile.show();
+    }
+
+//    --------stop select image
+__________________
+			
