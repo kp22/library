@@ -664,4 +664,18 @@ if (checkPermissionGranted()) {
 
 //    --------stop select image
 __________________
-			
+private Bitmap getBitmapFromView(final View v) {
+
+        int width = v.getMeasuredWidth();
+        int height = ((58 * v.getMeasuredHeight()) / 100);
+
+        if (width == 0 || height == 0) {
+            return null;
+        }
+        Bitmap bitmap = null;
+        bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        v.draw(canvas);
+        return bitmap;
+    }
+__________________
