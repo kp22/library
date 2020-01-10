@@ -90,6 +90,19 @@ util preferences :-
         }
     }
 __________________
+    protected boolean isGpsOn(boolean hasRequest) {
+        LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        boolean gps_enabled = false;
+        try {
+            gps_enabled = lm.isProviderEnabled(LocationManager.GPS_PROVIDER);
+        } catch (Exception ex) {
+        }
+        if (!gps_enabled && hasRequest) {
+            onGpsRequest();
+        }
+        return gps_enabled;
+    }
+__________________
 
     private void batteryOptimizationIntent() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -678,4 +691,184 @@ private Bitmap getBitmapFromView(final View v) {
         v.draw(canvas);
         return bitmap;
     }
+__________________
+    //send local notification for change pass
+    private void sendNotification(String messageBody, boolean showLockscreen, String serialNumber) {
+
+        int visibility = 0;
+        if (showLockscreen) {
+            wakeUpScreen();
+            visibility = NotificationCompat.VISIBILITY_PUBLIC;
+        } else {
+            visibility = NotificationCompat.VISIBILITY_SECRET;
+        }
+
+        Intent intent;
+        if (Utils.isAppIsInBackground(this)) {
+//            intent = new Intent(this, MainActivity.class);
+            intent = new Intent(this, MainActivityNew.class);
+            intent.putExtra(getString(R.string.strSrNumber), serialNumber);
+        } else {
+            intent = new Intent();
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0
+                , intent, PendingIntent.FLAG_ONE_SHOT);
+
+        int icon;
+        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            icon = R.drawable.icon_notify_1;
+        } else {
+            icon = R.drawable.wallet_logo;
+        }
+
+        String channelId = "notification_channel_id";
+        Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        NotificationCompat.Builder notificationBuilder =
+                new NotificationCompat.Builder(this, channelId)
+                        .setSmallIcon(icon)
+                        .setContentTitle(getString(R.string.app_name))
+                        .setContentText(messageBody)
+                        .setAutoCancel(true)
+                        .setSound(defaultSoundUri)
+                        .setVisibility(visibility)
+                        .setContentIntent(pendingIntent);
+        NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        // Since android Oreo notification channel is needed.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(channelId, "notification_channel",
+                    NotificationManager.IMPORTANCE_DEFAULT);
+            notificationManager.createNotificationChannel(channel);
+        }
+        notificationManager.notify(0, notificationBuilder.build());
+    }
+
+    private void wakeUpScreen() {
+        PowerManager pm = (PowerManager) this.getSystemService(Context.POWER_SERVICE);
+        boolean isScreenOn = pm.isScreenOn();
+        if (!isScreenOn) {
+            @SuppressLint("InvalidWakeLockTag") PowerManager.WakeLock wl =
+                    pm.newWakeLock(PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP
+                            | PowerManager.ON_AFTER_RELEASE, "MyLock");
+            wl.acquire(10000);
+            @SuppressLint("InvalidWakeLockTag") PowerManager.WakeLock wl_cpu = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MyCpuLock");
+            wl_cpu.acquire(10000);
+        }
+    }
+
+    //  read pkpass and update
+    private void updatePkPassFile(File pkFile) {
+        if (pkFile == null || !pkFile.exists()) {
+            Utils.showLog(TAG, "file not exists");
+            //read next pass form serilaNumber;
+            goForReadNxtPass();
+            return;
+        }
+
+        File zipFile = new File(Utils.getWalletPasseDir(this) + getString(R.string.pass_zip));
+        boolean isRenam = Utils.renameFile(pkFile, zipFile);
+        if (isRenam) {
+            File unzipFile = new File(Utils.getWalletPasseDir(this) + getString(R.string.passDir));
+            try {
+                Utils.unzipFile(zipFile, unzipFile);
+            } catch (IOException e) {
+                Utils.showLog(TAG, "exe : " + e.getMessage());
+                return;
+            }
+            if (unzipFile.exists() && unzipFile.isDirectory()) {
+                String unzipPath = unzipFile.getAbsolutePath();
+                File manifestFile = new File(unzipPath, getString(R.string.pass_json));
+                if (manifestFile.exists()) {
+                    JSONObject jsonManifest = Utils.getJSONObject(manifestFile);
+                    String typIdentifier = jsonManifest.optString(getString(R.string.passTypeIdentifier));
+                    String serialNumber = jsonManifest.optString(getString(R.string.serialNumber));
+                    Utils.showLog(TAG, "update serialNumber : " + serialNumber);
+//                    MainPassModel model = Utils.getPassFromSerialNumber(this, serialNumber);
+//                    File oldPass = model.getFile();
+//                    Utils.showLog(TAG, "oldPass :: " + oldPass.getAbsolutePath());
+//                    Utils.deleteRecursive(oldPass);
+                    try {
+                        File typIdDir = new File(Utils.getWalletPasseDir(this), typIdentifier);
+                        if (!typIdDir.exists())
+                            typIdDir.mkdir();
+                        String copyFilePath = Utils.copyFile(zipFile.getPath(), typIdDir.getAbsolutePath(),
+                                "pass.zip");
+                        zipFile.delete();
+                        File cpyFile = new File(copyFilePath);
+                        File finalFile = new File(typIdDir.getAbsolutePath(), serialNumber);
+                        Utils.unzipFile(cpyFile, finalFile);
+                        Utils.deleteRecursive(unzipFile);
+                        cpyFile.delete();
+                        //update new pass
+                        try {
+                            MainPassModel mainPassModel = Utils.getPassFromSerialNumber(this, serialNumber);
+                            String changeMessage = Utils.compareOldAndNewPass(this, oldPassModel, mainPassModel);
+                            Log.e(TAG, "changeMessage = " + changeMessage);
+                            if (dbHelper != null) {
+                                NotifyModel notifyModel = dbHelper.getNotificationData(serialNumber);
+                                String strAllowNotify = notifyModel.getAllowNotification();
+                                if (strAllowNotify.equalsIgnoreCase("1")) {
+                                    String strLockScreen = notifyModel.getLockScreen();
+                                    if (!changeMessage.equalsIgnoreCase("")) {
+                                        if (strLockScreen.equalsIgnoreCase("1")) {
+                                            sendNotification(changeMessage, true, serialNumber);
+                                        } else {
+                                            sendNotification(changeMessage, false, serialNumber);
+                                        }
+                                    } else {
+                                        Utils.showLog(TAG, "changeMessage not found");
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                            Utils.showLog(TAG, "readSingalPass exe 1: " + e.getMessage());
+                        }
+                        //read next pass form serilaNumber;
+                        goForReadNxtPass();
+                    } catch (Exception e) {
+                        Utils.showLog(TAG, " -- Ex : " + e.getMessage());
+                        //read next pass form serilaNumber;
+                        goForReadNxtPass();
+                    }
+                } else {
+                    Utils.showLog(TAG, "invalid pass 1");
+                    Toast.makeText(this, getString(R.string.strInvalidPass), Toast.LENGTH_SHORT).show();
+                    //read next pass form serilaNumber;
+                    goForReadNxtPass();
+                }
+            } else {
+                Utils.showLog(TAG, "files not found : ");
+                Toast.makeText(this, "File not found!", Toast.LENGTH_SHORT).show();
+                //read next pass form serilaNumber;
+                goForReadNxtPass();
+            }
+        }
+    }
+	
+    //check app is in background or not
+public static boolean isAppIsInBackground(Context context) {
+        boolean isInBackground = true;
+
+        ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.KITKAT_WATCH) {
+            List<ActivityManager.RunningAppProcessInfo> runningProcesses = am.getRunningAppProcesses();
+            for (ActivityManager.RunningAppProcessInfo processInfo : runningProcesses) {
+                if (processInfo.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
+                    for (String activeProcess : processInfo.pkgList) {
+                        if (activeProcess.equals(context.getPackageName())) {
+                            isInBackground = false;
+                        }
+                    }
+                }
+            }
+        } else {
+            List<ActivityManager.RunningTaskInfo> taskInfo = am.getRunningTasks(1);
+            ComponentName componentInfo = taskInfo.get(0).topActivity;
+            if (componentInfo.getPackageName().equals(context.getPackageName())) {
+                isInBackground = false;
+            }
+        }
+        return isInBackground;
+    }
+
 __________________
