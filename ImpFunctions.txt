@@ -870,5 +870,66 @@ public static boolean isAppIsInBackground(Context context) {
         }
         return isInBackground;
     }
-
 __________________
+
+// ———— download file using download manager start————
+public static IntentFilter getIntentFileter() {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ACTION_PASS_UPDATED);
+        filter.addAction(ACTION_WIFI_CONNECTIVITY);
+        filter.addAction(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+
+        return filter;
+    }
+
+registerReceiver(mReceiver, Utils.getIntentFileter());
+
+BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(final Context context, Intent intent) {
+            if (intent != null && intent.getAction() != null) {
+                String action = intent.getAction();
+                if (action.equalsIgnoreCase(Utils.ACTION_PASS_UPDATED)) {
+                    searchPassesDir();
+                } else if (action.equalsIgnoreCase(Utils.ACTION_WIFI_CONNECTIVITY)) {
+                    ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                    NetworkInfo info = cm.getActiveNetworkInfo();
+                    if (info != null && info.isConnected()) {
+                        registerUnSyncPasses();
+                    }
+                } else if (action.equalsIgnoreCase(DownloadManager.ACTION_DOWNLOAD_COMPLETE)) {
+                    long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+                    Log.e(TAG, "onReceive:id => " + id);
+                    if (downloadID == id) {
+                        Toast.makeText(context, "Download Completed", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            }
+        }
+    };
+
+private long downloadID;
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    public void downloadPass(String url){
+        String pkpassFile = Utils.getTempPasseDir(context) + getString(R.string.pass_pkpass);
+//        File file=new File(getFilesDir(),Utils.TempDir);
+//        File file = new File(pkpassFile);
+        File file=new File(getExternalFilesDir(null), Utils.TempDir);
+        Log.e(TAG, "downloadPass: path: "+file.getAbsolutePath());
+        /*
+        Create a DownloadManager.Request with all the information necessary to start the download
+         */
+        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url))
+                .setTitle("Dummy File")// Title of the Download Notification
+                .setDescription("Downloading")// Description of the Download Notification
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)// Visibility of the download Notification
+                .setDestinationUri(Uri.fromFile(file))// Uri of the destination file
+                .setRequiresCharging(false)// Set if charging is required to begin the download
+                .setAllowedOverMetered(true)// Set if download is allowed on Mobile network
+                .setAllowedOverRoaming(true);// Set if download is allowed on roaming network
+        DownloadManager downloadManager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+        downloadID = downloadManager.enqueue(request);
+    }
+
+// ———— download file using download manager finish ————
+_____________________	
